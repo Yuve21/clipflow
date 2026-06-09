@@ -115,3 +115,39 @@ export interface LineItem {
   unit_price: number
   amount: number
 }
+
+// ─── AI Clipper ───────────────────────────────────────────────────────────────
+export type AiJobStatus = 'uploading' | 'processing' | 'done' | 'error'
+export type CutStatus = 'pending' | 'cutting' | 'done' | 'error'
+
+export interface AiJob {
+  id: string
+  workspace_id: string
+  client_id: string | null
+  video_path: string
+  video_filename: string
+  max_clips: number
+  min_duration_s: number
+  max_duration_s: number
+  status: AiJobStatus
+  error_message: string | null
+  created_at: string
+  completed_at: string | null
+}
+
+export interface AiClipSuggestion {
+  id: string
+  job_id: string
+  workspace_id: string
+  title: string
+  start_time: number
+  end_time: number
+  viral_score: number
+  hook: string
+  reason: string
+  clip_id: string | null
+  cut_status: CutStatus
+  cut_error: string | null
+  output_path: string | null
+  created_at: string
+}

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Users, Film, BookOpen, LayoutDashboard, LogOut } from 'lucide-react'
+import { Users, Film, BookOpen, LayoutDashboard, LogOut, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -12,6 +12,7 @@ const nav = [
   { href: '/dashboard/clients', label: 'Clients', icon: Users },
   { href: '/dashboard/clips', label: 'Clips', icon: Film },
   { href: '/dashboard/sources', label: 'Sources', icon: BookOpen },
+  { href: '/dashboard/ai-clipper', label: 'AI Clipper', icon: Sparkles },
 ]
 
 export function Sidebar() {
