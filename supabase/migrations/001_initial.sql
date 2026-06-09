@@ -1,12 +1,9 @@
 -- ClipFlow initial schema
 -- All RLS is scoped by workspace_id via workspace_members
 
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
-
 -- ─── Workspaces ───────────────────────────────────────────────────────────────
 create table workspaces (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   owner_user_id uuid not null references auth.users(id) on delete cascade,
   name          text not null default 'My Workspace',
   plan          text not null default 'free' check (plan in ('free','pro')),
@@ -15,7 +12,7 @@ create table workspaces (
 );
 
 create table workspace_members (
-  id           uuid primary key default uuid_generate_v4(),
+  id           uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
   user_id      uuid not null references auth.users(id) on delete cascade,
   role         text not null default 'owner' check (role in ('owner')),
@@ -25,7 +22,7 @@ create table workspace_members (
 
 -- ─── Clients ──────────────────────────────────────────────────────────────────
 create table clients (
-  id                      uuid primary key default uuid_generate_v4(),
+  id                      uuid primary key default gen_random_uuid(),
   workspace_id            uuid not null references workspaces(id) on delete cascade,
   name                    text not null,
   source_platform         text,
@@ -41,7 +38,7 @@ create table clients (
 
 -- ─── Posting accounts ─────────────────────────────────────────────────────────
 create table posting_accounts (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   client_id     uuid not null references clients(id) on delete cascade,
   platform      text not null,
   handle        text not null,
@@ -51,7 +48,7 @@ create table posting_accounts (
 
 -- ─── Client agreements ────────────────────────────────────────────────────────
 create table client_agreements (
-  id               uuid primary key default uuid_generate_v4(),
+  id               uuid primary key default gen_random_uuid(),
   client_id        uuid not null references clients(id) on delete cascade,
   term_version     text not null default 'v1',
   term_text        text not null,
@@ -64,7 +61,7 @@ create table client_agreements (
 
 -- ─── Sources ──────────────────────────────────────────────────────────────────
 create table sources (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   client_id   uuid not null references clients(id) on delete cascade,
   title       text not null,
   url         text,
@@ -74,7 +71,7 @@ create table sources (
 
 -- ─── Clips ────────────────────────────────────────────────────────────────────
 create table clips (
-  id                 uuid primary key default uuid_generate_v4(),
+  id                 uuid primary key default gen_random_uuid(),
   client_id          uuid not null references clients(id) on delete cascade,
   source_id          uuid references sources(id) on delete set null,
   title              text not null,
@@ -85,7 +82,7 @@ create table clips (
 );
 
 create table clip_versions (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   clip_id     uuid not null references clips(id) on delete cascade,
   version_no  integer not null default 1,
   file_url    text,
@@ -98,7 +95,7 @@ alter table clips add constraint clips_current_version_fk
 
 -- ─── Posts ────────────────────────────────────────────────────────────────────
 create table posts (
-  id                 uuid primary key default uuid_generate_v4(),
+  id                 uuid primary key default gen_random_uuid(),
   clip_id            uuid not null references clips(id) on delete cascade,
   posting_account_id uuid not null references posting_accounts(id) on delete restrict,
   url                text,
@@ -108,7 +105,7 @@ create table posts (
 
 -- ─── Invoices ─────────────────────────────────────────────────────────────────
 create table invoices (
-  id           uuid primary key default uuid_generate_v4(),
+  id           uuid primary key default gen_random_uuid(),
   client_id    uuid not null references clients(id) on delete cascade,
   period_start date not null,
   period_end   date not null,
