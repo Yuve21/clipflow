@@ -19,6 +19,13 @@ export async function POST(req: Request) {
     .from('workspace_members').select('id').eq('workspace_id', wsId).eq('user_id', user.id).single()
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  // Verify posting_account_id belongs to the same workspace
+  if (posting_account_id) {
+    const { data: account } = await supabase
+      .from('posting_accounts').select('id').eq('id', posting_account_id).single()
+    if (!account) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const admin = createAdminClient()
 
   // Create the post record

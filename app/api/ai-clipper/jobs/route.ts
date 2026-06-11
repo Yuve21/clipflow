@@ -34,6 +34,14 @@ export async function POST(req: Request) {
 
   const { data: member } = await supabase
     .from('workspace_members').select('workspace_id').eq('user_id', user.id).single()
+  if (!member) return NextResponse.json({ error: 'No workspace' }, { status: 403 })
+
+  // Enforce Pro plan — prevent free users from bypassing via direct Supabase insert
+  const { data: workspace } = await supabase
+    .from('workspaces').select('plan').eq('id', member.workspace_id).single()
+  if (workspace?.plan !== 'pro') {
+    return NextResponse.json({ error: 'AI Clipper requires a Pro plan' }, { status: 403 })
+  }
 
   const admin = createAdminClient()
 

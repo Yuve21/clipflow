@@ -9,6 +9,13 @@ export async function POST(req: Request) {
 
   const { filename, content_type, client_id } = await req.json()
 
+  // Validate file extension at API layer
+  const ALLOWED_EXTENSIONS = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'm4v']
+  const fileExt = (filename?.split('.').pop() ?? '').toLowerCase()
+  if (!ALLOWED_EXTENSIONS.includes(fileExt)) {
+    return NextResponse.json({ error: 'Invalid file type. Allowed: mp4, mov, avi, webm, mkv' }, { status: 400 })
+  }
+
   const { data: member } = await supabase
     .from('workspace_members').select('workspace_id').eq('user_id', user.id).single()
   if (!member) return NextResponse.json({ error: 'No workspace' }, { status: 400 })

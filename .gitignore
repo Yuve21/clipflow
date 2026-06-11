@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local scripts with credentials
+verify-app.mjs
+*.env.wingman*
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
