@@ -10,11 +10,11 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 interface Client { id: string; name: string }
-interface Props { clients: Client[]; isPro: boolean }
+interface Props { clients: Client[]; credits: number }
 
 const MAX_FILE_BYTES = 500 * 1024 * 1024 // 500MB
 
-export function NewJobButton({ clients, isPro }: Props) {
+export function NewJobButton({ clients, credits }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -114,7 +114,7 @@ export function NewJobButton({ clients, isPro }: Props) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} disabled={!isPro}>
+      <Button onClick={() => setOpen(true)} disabled={credits < 1} title={credits < 1 ? 'Buy credits to run the AI Clipper' : undefined}>
         <Sparkles size={16} /> New AI job
       </Button>
 
@@ -136,7 +136,7 @@ export function NewJobButton({ clients, isPro }: Props) {
               ) : (
                 <div>
                   <p className="text-sm text-gray-600">Click to select a video</p>
-                  <p className="text-xs text-gray-400 mt-0.5">MP4, MOV, MKV, WebM · Max 500MB</p>
+                  <p className="text-xs text-gray-400 mt-0.5">MP4, MOV, MKV, WebM · Max 500MB · up to 90 min · uses 1 credit</p>
                 </div>
               )}
             </div>

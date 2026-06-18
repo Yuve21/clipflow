@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Sparkles, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Sparkles, Clock, CheckCircle2, AlertCircle, Loader2, Coins } from 'lucide-react'
 import { NewJobButton } from './new-job-button'
+import { BuyCreditsButton } from './buy-credits-button'
 import type { AiJobStatus } from '@/types/database'
 
 export default async function AiClipperPage() {
@@ -14,7 +15,7 @@ export default async function AiClipperPage() {
     .from('workspace_members').select('workspace_id').eq('user_id', user!.id).single()
 
   const { data: workspace } = await supabase
-    .from('workspaces').select('plan').eq('id', member?.workspace_id).single()
+    .from('workspaces').select('ai_credits').eq('id', member?.workspace_id).single()
 
   const { data: jobs } = await supabase
     .from('ai_jobs')
@@ -25,11 +26,11 @@ export default async function AiClipperPage() {
   const { data: clients } = await supabase
     .from('clients').select('id, name').eq('workspace_id', member?.workspace_id).eq('status', 'active')
 
-  const isPro = workspace?.plan === 'pro'
+  const credits = workspace?.ai_credits ?? 0
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold text-gray-900">AI Clipper</h1>
@@ -37,16 +38,27 @@ export default async function AiClipperPage() {
           </div>
           <p className="text-sm text-gray-500">Upload a long video — AI finds the most viral moments and cuts them for you.</p>
         </div>
-        <NewJobButton clients={clients ?? []} isPro={isPro} />
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700"
+            title="1 credit = 1 AI clip job"
+          >
+            <Coins size={15} />
+            {credits} {credits === 1 ? 'credit' : 'credits'}
+          </div>
+          <BuyCreditsButton />
+          <NewJobButton clients={clients ?? []} credits={credits} />
+        </div>
       </div>
 
-      {!isPro && (
-        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-3">
-          <Sparkles size={18} className="text-indigo-500 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-indigo-900">AI Clipper is a Pro feature</p>
-            <p className="text-sm text-indigo-700 mt-0.5">Upgrade to Pro to process videos with AI and auto-generate viral clips.</p>
+      {credits === 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+          <Sparkles size={18} className="mt-0.5 shrink-0 text-indigo-500" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-indigo-900">You&apos;re out of AI credits</p>
+            <p className="mt-0.5 text-sm text-indigo-700">Each clip job uses 1 credit (video up to 90 min). Buy a pack to keep finding viral moments.</p>
           </div>
+          <BuyCreditsButton variant="primary" label="Buy credits" />
         </div>
       )}
 

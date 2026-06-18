@@ -22,6 +22,35 @@ export async function POST(req: Request) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
+
+    // ── Credit pack purchase — grant AI credits (platform revenue) ────────────
+    if (session.metadata?.type === 'credit_purchase' && session.payment_status === 'paid') {
+      const admin = createAdminClient()
+      const purchaseId = session.metadata.purchase_id
+
+      // Idempotent: only the transition pending→paid grants credits, so repeated
+      // webhook deliveries never double-credit.
+      const { data: claimed } = await admin
+        .from('credit_purchases')
+        .update({ status: 'paid', paid_at: new Date().toISOString() })
+        .eq('id', purchaseId)
+        .eq('status', 'pending')
+        .select('workspace_id, credits')
+        .single()
+
+      if (claimed) {
+        const { error: grantError } = await admin.rpc('add_ai_credits', {
+          p_workspace_id: claimed.workspace_id,
+          p_amount: claimed.credits,
+        })
+        if (grantError) {
+          console.error('Stripe webhook: failed to grant credits', purchaseId, grantError)
+          return NextResponse.json({ error: 'Failed to grant credits' }, { status: 500 })
+        }
+      }
+      return NextResponse.json({ received: true })
+    }
+
     const invoiceId = session.metadata?.invoice_id
 
     if (invoiceId && session.payment_status === 'paid') {

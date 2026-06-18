@@ -20,11 +20,16 @@ export async function POST(req: Request) {
     .from('workspace_members').select('workspace_id').eq('user_id', user.id).single()
   if (!member) return NextResponse.json({ error: 'No workspace' }, { status: 400 })
 
+  // Usage-based: require at least one AI credit before issuing an upload URL.
+  // The credit is actually consumed when the job starts (jobs POST).
   const { data: workspace } = await supabase
-    .from('workspaces').select('plan').eq('id', member.workspace_id).single()
+    .from('workspaces').select('ai_credits').eq('id', member.workspace_id).single()
 
-  if (workspace?.plan !== 'pro') {
-    return NextResponse.json({ error: 'AI Clipper requires a Pro plan' }, { status: 403 })
+  if (!workspace || workspace.ai_credits < 1) {
+    return NextResponse.json(
+      { error: 'You are out of AI credits. Buy a credit pack to run the AI Clipper.', code: 'no_credits' },
+      { status: 402 }
+    )
   }
 
   const admin = createAdminClient()

@@ -6,6 +6,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { analyzeAudioEnergy, scoreClipEnergy } from './audio-energy'
 import { extractFrames, scoreVisually } from './visual-score'
+import { MAX_SOURCE_SECONDS, estimateJobCostCents } from '@/lib/credits'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg')
@@ -54,6 +55,10 @@ export async function processAiJob(jobId: string) {
   const tmpDir = path.join(os.tmpdir(), `clipflow-ai-${jobId}`)
   fs.mkdirSync(tmpDir, { recursive: true })
 
+  // Track whether we've spent money on OpenAI yet. If the job fails before this,
+  // we refund the credit consumed at job start.
+  let paidApiStarted = false
+
   try {
     await admin.from('ai_jobs').update({ status: 'processing' }).eq('id', jobId)
 
@@ -64,6 +69,18 @@ export async function processAiJob(jobId: string) {
     // ── Step 2: Extract audio ─────────────────────────────────────────────────
     const audioPath = path.join(tmpDir, 'audio.mp3')
     await extractAudio(sourceVideoPath, audioPath)
+
+    // ── Step 2b: Enforce source-length cap (bounds cost + the 300s timeout) ────
+    const audioDuration = await getAudioDuration(audioPath)
+    if (audioDuration > MAX_SOURCE_SECONDS) {
+      // Refund the credit — no paid API call has happened yet.
+      await admin.rpc('add_ai_credits', { p_workspace_id: job.workspace_id, p_amount: 1 })
+      await admin.from('ai_jobs').update({
+        status: 'error',
+        error_message: `Video is ${Math.round(audioDuration / 60)} min, over the ${Math.round(MAX_SOURCE_SECONDS / 60)} min limit. Your credit was refunded.`,
+      }).eq('id', jobId)
+      return
+    }
 
     // ── Step 3: Audio energy profile (podcast signal) ─────────────────────────
     // Run in parallel with frame extraction — both need tmpDir, no shared state
@@ -79,15 +96,26 @@ export async function processAiJob(jobId: string) {
     // ── Step 4: Free space — source video no longer needed ────────────────────
     fs.rmSync(sourceVideoPath, { force: true })
 
-    // ── Step 5: Transcribe ────────────────────────────────────────────────────
+    // ── Step 5: Transcribe (first paid API call) ──────────────────────────────
+    paidApiStarted = true
     const segments = await transcribeAudio(audioPath, tmpDir)
     fs.rmSync(audioPath, { force: true })
 
     // ── Step 6: GPT-4o text analysis → text scores ───────────────────────────
-    const textSuggestions = await analyzeForViralMoments(segments, {
-      maxClips: job.max_clips,
-      minDuration: job.min_duration_s,
-      maxDuration: job.max_duration_s,
+    const { suggestions: textSuggestions, inputTokens: gptInputTokens, outputTokens: gptOutputTokens } =
+      await analyzeForViralMoments(segments, {
+        maxClips: job.max_clips,
+        minDuration: job.min_duration_s,
+        maxDuration: job.max_duration_s,
+      })
+
+    // Record usage + estimated cost for margin analytics (non-fatal)
+    await recordUsage(admin, {
+      workspaceId: job.workspace_id,
+      jobId,
+      sourceSeconds: audioDuration,
+      gptInputTokens,
+      gptOutputTokens,
     })
 
     if (textSuggestions.length === 0) {
@@ -137,6 +165,11 @@ export async function processAiJob(jobId: string) {
 
   } catch (err) {
     console.error(`[AI Job ${jobId}] Error:`, err)
+    // Refund the credit if we failed before spending anything on OpenAI.
+    if (!paidApiStarted) {
+      await admin.rpc('add_ai_credits', { p_workspace_id: job.workspace_id, p_amount: 1 })
+        .then(() => {}, () => {})
+    }
     await admin.from('ai_jobs').update({
       status: 'error',
       error_message: err instanceof Error ? err.message : String(err),
@@ -244,8 +277,8 @@ function extractAudioChunk(inputPath: string, outputPath: string, startSec: numb
 async function analyzeForViralMoments(
   segments: Segment[],
   filters: { maxClips: number; minDuration: number; maxDuration: number }
-): Promise<ClipSuggestion[]> {
-  if (segments.length === 0) return []
+): Promise<{ suggestions: ClipSuggestion[]; inputTokens: number; outputTokens: number }> {
+  if (segments.length === 0) return { suggestions: [], inputTokens: 0, outputTokens: 0 }
 
   const transcriptText = segments
     .map(s => `[${formatTime(s.start)} - ${formatTime(s.end)}] ${s.text.trim()}`)
@@ -279,12 +312,43 @@ Return ONLY valid JSON — no markdown:
 
   const raw = response.choices[0].message.content ?? '{}'
   const parsed = JSON.parse(raw) as { clips?: ClipSuggestion[] }
-  return (parsed.clips ?? []).filter(c =>
+  const suggestions = (parsed.clips ?? []).filter(c =>
     typeof c.start_time === 'number' &&
     typeof c.end_time === 'number' &&
     c.end_time > c.start_time &&
     c.viral_score >= 50
   )
+  return {
+    suggestions,
+    inputTokens: response.usage?.prompt_tokens ?? 0,
+    outputTokens: response.usage?.completion_tokens ?? 0,
+  }
+}
+
+// Write a usage/cost row for one job. Best-effort — never throws into the pipeline.
+async function recordUsage(
+  admin: ReturnType<typeof createAdminClient>,
+  opts: { workspaceId: string; jobId: string; sourceSeconds: number; gptInputTokens: number; gptOutputTokens: number }
+) {
+  try {
+    const estCents = estimateJobCostCents({
+      sourceSeconds: opts.sourceSeconds,
+      gptInputTokens: opts.gptInputTokens,
+      gptOutputTokens: opts.gptOutputTokens,
+    })
+    await admin.from('ai_usage_events').insert({
+      workspace_id: opts.workspaceId,
+      job_id: opts.jobId,
+      source_seconds: Math.round(opts.sourceSeconds * 100) / 100,
+      whisper_minutes: Math.round((opts.sourceSeconds / 60) * 100) / 100,
+      gpt_input_tokens: opts.gptInputTokens,
+      gpt_output_tokens: opts.gptOutputTokens,
+      est_cost_cents: Math.round(estCents * 10000) / 10000,
+      credits_charged: 1,
+    })
+  } catch (e) {
+    console.warn(`[AI Job ${opts.jobId}] usage metering failed:`, e)
+  }
 }
 
 function formatTime(seconds: number) {

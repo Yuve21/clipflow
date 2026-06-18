@@ -36,13 +36,6 @@ export async function POST(req: Request) {
     .from('workspace_members').select('workspace_id').eq('user_id', user.id).single()
   if (!member) return NextResponse.json({ error: 'No workspace' }, { status: 403 })
 
-  // Enforce Pro plan — prevent free users from bypassing via direct Supabase insert
-  const { data: workspace } = await supabase
-    .from('workspaces').select('plan').eq('id', member.workspace_id).single()
-  if (workspace?.plan !== 'pro') {
-    return NextResponse.json({ error: 'AI Clipper requires a Pro plan' }, { status: 403 })
-  }
-
   const admin = createAdminClient()
 
   // Verify job belongs to this workspace
@@ -54,6 +47,20 @@ export async function POST(req: Request) {
   }
   if (job.status !== 'uploading') {
     return NextResponse.json({ error: 'Job already processing' }, { status: 409 })
+  }
+
+  // Usage-based billing: atomically consume one AI credit. A credit is refunded
+  // inside processAiJob if the job fails before any paid API call (e.g. too long).
+  const { data: consumed, error: consumeError } = await admin
+    .rpc('consume_ai_credit', { p_workspace_id: member.workspace_id })
+  if (consumeError) {
+    return NextResponse.json({ error: 'Could not reserve a credit' }, { status: 500 })
+  }
+  if (!consumed) {
+    return NextResponse.json(
+      { error: 'You are out of AI credits. Buy a credit pack to run the AI Clipper.', code: 'no_credits' },
+      { status: 402 }
+    )
   }
 
   // Save filters

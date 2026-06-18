@@ -12,6 +12,34 @@ export interface Workspace {
   name: string
   plan: Plan
   stripe_customer_id: string | null
+  ai_credits: number
+  created_at: string
+}
+
+export type CreditPurchaseStatus = 'pending' | 'paid' | 'canceled'
+
+export interface CreditPurchase {
+  id: string
+  workspace_id: string
+  pack_id: string
+  credits: number
+  amount_cents: number
+  stripe_checkout_session_id: string | null
+  status: CreditPurchaseStatus
+  created_at: string
+  paid_at: string | null
+}
+
+export interface AiUsageEvent {
+  id: string
+  workspace_id: string
+  job_id: string | null
+  source_seconds: number | null
+  whisper_minutes: number | null
+  gpt_input_tokens: number | null
+  gpt_output_tokens: number | null
+  est_cost_cents: number | null
+  credits_charged: number
   created_at: string
 }
 

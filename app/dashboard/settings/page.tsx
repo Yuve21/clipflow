@@ -2,13 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { Check, Sparkles } from 'lucide-react'
+import { Coins } from 'lucide-react'
 import { Suspense } from 'react'
 import { WorkspaceNameForm, CopyWorkspaceId } from './workspace-name-form'
 import { StripeConnectButton } from './stripe-connect-button'
-
-const PRO_FEATURES = ['AI Clipper', 'Unlimited jobs', 'Priority support']
+import { BuyCreditsButton } from '../ai-clipper/buy-credits-button'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -26,7 +24,7 @@ export default async function SettingsPage() {
 
   const { data: workspace } = await supabase
     .from('workspaces')
-    .select('id, name, plan, created_at')
+    .select('id, name, ai_credits, created_at')
     .eq('id', member.workspace_id)
     .single()
 
@@ -34,7 +32,7 @@ export default async function SettingsPage() {
     return <div className="p-8 text-gray-500">Workspace not found.</div>
   }
 
-  const isPro = workspace.plan === 'pro'
+  const credits = workspace.ai_credits ?? 0
   const joinedDate = new Date(workspace.created_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -61,45 +59,24 @@ export default async function SettingsPage() {
           </div>
         </Card>
 
-        {/* Plan */}
+        {/* AI Clipper credits */}
         <Card>
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Plan</h2>
-            {isPro ? (
-              <Badge variant="indigo">
-                <Sparkles size={12} className="mr-1" />
-                Pro
-              </Badge>
-            ) : (
-              <Badge variant="gray">Free</Badge>
-            )}
+            <h2 className="font-semibold text-gray-900">AI Clipper credits</h2>
+            <Badge variant="indigo">
+              <Coins size={12} className="mr-1" />
+              {credits} {credits === 1 ? 'credit' : 'credits'}
+            </Badge>
           </div>
-          {isPro ? (
-            <div className="mt-4">
-              <p className="text-sm text-gray-600">You&apos;re on the Pro plan. Included in your plan:</p>
-              <ul className="mt-3 space-y-2">
-                {PRO_FEATURES.map(feature => (
-                  <li key={feature} className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check size={14} className="text-indigo-600" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              The AI Clipper is pay-per-use: <span className="font-medium text-gray-900">1 credit = 1 clip job</span> (source
+              video up to 90 min). Credits never expire.
+            </p>
+            <div className="shrink-0">
+              <BuyCreditsButton />
             </div>
-          ) : (
-            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-600">
-                You&apos;re on the free plan. Upgrade to Pro for AI Clipper, unlimited jobs, and
-                priority support.
-              </p>
-              <Link href="#" className="shrink-0">
-                <Button size="sm">
-                  <Sparkles size={14} />
-                  Upgrade to Pro
-                </Button>
-              </Link>
-            </div>
-          )}
+          </div>
         </Card>
 
         {/* Account */}
