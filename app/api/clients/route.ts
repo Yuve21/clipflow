@@ -53,6 +53,7 @@ export async function POST(req: Request) {
         deliverables_per_period: deliverables_per_period || null,
         brand_notes: brand_notes || null,
         status: 'pending_agreement',
+        portal_token: randomBytes(18).toString('hex'),
       })
       .select()
       .single()

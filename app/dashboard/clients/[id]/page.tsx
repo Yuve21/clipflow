@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, CheckCircle2, Clock, Copy, ExternalLink } from 'lucide-react'
 import { CopyButton } from './copy-button'
 import { AddPostingAccountButton } from './add-posting-account-button'
+import { PortalLinkButton } from './portal-link-button'
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -33,6 +34,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const agreement = (client.client_agreements as {id: string, token: string, accepted: boolean, accepted_at: string | null, accepted_by_name: string | null, term_text: string}[])?.[0]
   const agreementUrl = agreement ? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/agree/${agreement.token}` : null
+  const portalUrl = client.portal_token ? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/portal/${client.portal_token}` : null
   const postingAccounts = client.posting_accounts as {id: string, platform: string, handle: string, follower_count: number}[]
   const clips = client.clips as {id: string, title: string, status: string, created_at: string}[]
 
@@ -109,6 +111,22 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </div>
         </Card>
       </div>
+
+      {/* Portal link */}
+      {portalUrl && client.portal_token && (
+        <Card className="mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-900">Portal link</h2>
+            <PortalLinkButton portalToken={client.portal_token as string} />
+          </div>
+          <p className="text-sm text-gray-500 mb-3">
+            Share this read-only dashboard with {client.name} — no login required.
+          </p>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600 font-mono truncate">
+            {portalUrl}
+          </div>
+        </Card>
+      )}
 
       {/* Posting accounts */}
       <Card className="mb-5">
