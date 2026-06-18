@@ -16,10 +16,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          'inline-flex items-center justify-center font-medium rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center font-medium rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
           {
-            'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800': variant === 'primary',
-            'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:bg-gray-100': variant === 'secondary',
+            'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:bg-indigo-800': variant === 'primary',
+            'bg-white text-gray-700 border border-gray-200 shadow-sm hover:bg-gray-50 active:bg-gray-100': variant === 'secondary',
             'text-gray-600 hover:bg-gray-100 active:bg-gray-200': variant === 'ghost',
             'bg-red-600 text-white hover:bg-red-700 active:bg-red-800': variant === 'danger',
           },
