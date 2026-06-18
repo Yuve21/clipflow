@@ -38,6 +38,7 @@ yarn-error.log*
 
 # local scripts with credentials
 verify-app.mjs
+test-clipper.mts
 *.env.wingman*
 
 # typescript
