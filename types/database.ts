@@ -43,6 +43,65 @@ export interface AiUsageEvent {
   created_at: string
 }
 
+// ── Marketplace ───────────────────────────────────────────────────────────────
+export type PromoType = 'product' | 'service' | 'business' | 'music' | 'content'
+export type PayoutModel = 'per_post' | 'per_1k_views' | 'flat'
+export type CampaignStatus = 'draft' | 'active' | 'paused' | 'closed'
+export type ParticipationStatus = 'applied' | 'approved' | 'rejected' | 'active' | 'completed'
+
+export interface ContentCategory {
+  slug: string
+  label: string
+  sort: number
+}
+
+export interface ClipperProfile {
+  workspace_id: string
+  display_name: string
+  bio: string | null
+  is_listed: boolean
+  min_rate_cents: number | null
+  total_followers: number | null
+  referred_by: string | null
+  created_at: string
+}
+
+export interface Brand {
+  id: string
+  workspace_id: string
+  name: string
+  website: string | null
+  description: string | null
+  logo_url: string | null
+  created_at: string
+}
+
+export interface Campaign {
+  id: string
+  brand_id: string
+  title: string
+  description: string | null
+  promo_type: PromoType
+  payout_model: PayoutModel
+  payout_cents: number
+  budget_cents: number
+  status: CampaignStatus
+  asset_url: string | null
+  starts_at: string | null
+  ends_at: string | null
+  created_at: string
+}
+
+export interface CampaignParticipation {
+  id: string
+  campaign_id: string
+  clipper_workspace_id: string
+  status: ParticipationStatus
+  pitch: string | null
+  applied_at: string
+  decided_at: string | null
+}
+
 export interface WorkspaceMember {
   id: string
   workspace_id: string

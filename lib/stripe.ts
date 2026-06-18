@@ -11,8 +11,16 @@ export function getStripe(): Stripe {
   return _stripe
 }
 
-export const PLATFORM_FEE_PCT = 0.04 // 4%
+export const PLATFORM_FEE_PCT = 0.04 // 4% on clipper→client invoices (Connect application fee)
 
 export function platformFeeCents(totalCents: number): number {
   return Math.round(totalCents * PLATFORM_FEE_PCT)
+}
+
+// Marketplace: ClipFlow's cut of advertiser spend when a brand pays a clipper
+// to promote. Applied on payout (payments land in a later migration).
+export const MARKETPLACE_TAKE_PCT = 0.15 // 15%
+
+export function marketplaceTakeCents(totalCents: number): number {
+  return Math.round(totalCents * MARKETPLACE_TAKE_PCT)
 }
