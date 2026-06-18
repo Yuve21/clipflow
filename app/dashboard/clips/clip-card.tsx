@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 import { LogPostModal } from './log-post-modal'
-import { ChevronDown, Calendar, ExternalLink } from 'lucide-react'
+import { ChevronDown, Calendar, ExternalLink, ArrowUpRight } from 'lucide-react'
 
 type ClipStatus = 'todo' | 'editing' | 'ready' | 'posted' | 'flagged'
 
@@ -33,7 +33,14 @@ export function ClipCard({ clip, onMove, columns }: Props) {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 cursor-default group">
         <div className="flex items-start justify-between gap-1 mb-1">
           <p className="text-sm font-medium text-gray-900 leading-snug">{clip.title}</p>
-          <div className="relative shrink-0">
+          <div className="relative flex items-center gap-0.5 shrink-0">
+            <Link
+              href={`/dashboard/clips/${clip.id}`}
+              aria-label="View details"
+              className="p-0.5 rounded text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ArrowUpRight size={12} />
+            </Link>
             <button
               onClick={() => setShowMenu(v => !v)}
               className="p-0.5 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100"
