@@ -2,20 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Megaphone, Plus, UserCog, ExternalLink } from 'lucide-react'
+import { Megaphone, Plus, UserCog, ExternalLink, Building2, Inbox } from 'lucide-react'
 import { ApplyButton } from './apply-button'
+import { payoutLabel, promoBadge } from '@/lib/marketplace'
 import type { PayoutModel, PromoType } from '@/types/database'
-
-function payoutLabel(model: PayoutModel, cents: number) {
-  const amt = `$${(cents / 100).toLocaleString('en-US')}`
-  if (model === 'per_post') return `${amt} / post`
-  if (model === 'per_1k_views') return `${amt} / 1k views`
-  return `${amt} flat`
-}
-
-const promoBadge: Record<PromoType, 'indigo' | 'purple' | 'blue' | 'green' | 'gray'> = {
-  product: 'indigo', service: 'blue', business: 'gray', music: 'purple', content: 'green',
-}
 
 type CampaignRow = {
   id: string
@@ -72,7 +62,19 @@ export default async function MarketplacePage({
             Get paid to promote brands, services, and music — or post a campaign and let clippers amplify yours.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/dashboard/marketplace/brands"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <Building2 size={15} /> Browse brands
+          </Link>
+          <Link
+            href="/dashboard/marketplace/campaigns"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <Inbox size={15} /> My campaigns
+          </Link>
           <Link
             href="/dashboard/marketplace/profile"
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"

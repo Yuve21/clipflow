@@ -70,9 +70,11 @@ export interface Brand {
   id: string
   workspace_id: string
   name: string
+  tagline: string | null
   website: string | null
   description: string | null
   logo_url: string | null
+  is_listed: boolean
   created_at: string
 }
 
