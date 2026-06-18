@@ -143,6 +143,10 @@ export interface AiClipSuggestion {
   start_time: number
   end_time: number
   viral_score: number
+  text_score: number | null
+  audio_score: number | null
+  visual_score: number | null
+  visual_analysis: string | null
   hook: string
   reason: string
   clip_id: string | null

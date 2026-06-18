@@ -4,16 +4,20 @@ import ffmpeg from 'fluent-ffmpeg'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { analyzeAudioEnergy, scoreClipEnergy } from './audio-energy'
+import { extractFrames, scoreVisually } from './visual-score'
 
-// Dynamically require to avoid webpack bundling issues
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg')
 ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const WHISPER_MAX_BYTES = 24 * 1024 * 1024
+const AUDIO_CHUNK_SECONDS = 1200
 
-const WHISPER_MAX_BYTES = 24 * 1024 * 1024 // 24MB (leave 1MB headroom)
-const AUDIO_CHUNK_SECONDS = 1200 // 20 min chunks for chunked transcription
+// Composite score weights (must sum to 1.0)
+const W_TEXT = 0.55
+const W_VISUAL = 0.35
+const W_AUDIO = 0.10
 
 interface Segment {
   start: number
@@ -25,9 +29,15 @@ interface ClipSuggestion {
   title: string
   start_time: number
   end_time: number
-  viral_score: number
+  viral_score: number // text-based score from GPT-4o; renamed to text_score after combining
   hook: string
   reason: string
+}
+
+let _openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  return _openai
 }
 
 export async function processAiJob(jobId: string) {
@@ -45,45 +55,80 @@ export async function processAiJob(jobId: string) {
   fs.mkdirSync(tmpDir, { recursive: true })
 
   try {
-    // Step 1: download source video
     await admin.from('ai_jobs').update({ status: 'processing' }).eq('id', jobId)
 
+    // ── Step 1: Download source video ────────────────────────────────────────
     const sourceVideoPath = path.join(tmpDir, 'source.mp4')
     await downloadFromStorage('ai-source-videos', job.video_path, sourceVideoPath)
 
-    // Step 2: extract compressed audio
+    // ── Step 2: Extract audio ─────────────────────────────────────────────────
     const audioPath = path.join(tmpDir, 'audio.mp3')
     await extractAudio(sourceVideoPath, audioPath)
 
-    // Free up tmp space — delete source video before transcribing
+    // ── Step 3: Audio energy profile (podcast signal) ─────────────────────────
+    // Run in parallel with frame extraction — both need tmpDir, no shared state
+    const [energyMap, frames] = await Promise.all([
+      analyzeAudioEnergy(audioPath, tmpDir),
+      extractFrames(sourceVideoPath, tmpDir).catch(err => {
+        // Video-only signal — audio-only files have no video stream; non-fatal
+        console.warn('[ProcessAiJob] Frame extraction skipped:', err.message)
+        return []
+      }),
+    ])
+
+    // ── Step 4: Free space — source video no longer needed ────────────────────
     fs.rmSync(sourceVideoPath, { force: true })
 
-    // Step 3: transcribe (chunk if needed)
+    // ── Step 5: Transcribe ────────────────────────────────────────────────────
     const segments = await transcribeAudio(audioPath, tmpDir)
     fs.rmSync(audioPath, { force: true })
 
-    // Step 4: GPT-4o viral analysis
-    const suggestions = await analyzeForViralMoments(segments, {
+    // ── Step 6: GPT-4o text analysis → text scores ───────────────────────────
+    const textSuggestions = await analyzeForViralMoments(segments, {
       maxClips: job.max_clips,
       minDuration: job.min_duration_s,
       maxDuration: job.max_duration_s,
     })
 
-    // Step 5: persist suggestions
-    if (suggestions.length > 0) {
-      await admin.from('ai_clip_suggestions').insert(
-        suggestions.map(s => ({
-          job_id: jobId,
-          workspace_id: job.workspace_id,
-          title: s.title,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          viral_score: s.viral_score,
-          hook: s.hook,
-          reason: s.reason,
-        }))
-      )
+    if (textSuggestions.length === 0) {
+      await admin.from('ai_jobs').update({
+        status: 'done',
+        completed_at: new Date().toISOString(),
+      }).eq('id', jobId)
+      return
     }
+
+    // ── Step 7: Visual scoring via GPT-4o Vision ──────────────────────────────
+    const visualScores = await scoreVisually(frames, textSuggestions, getOpenAI())
+
+    // ── Step 8: Combine all three signals ─────────────────────────────────────
+    const enriched = textSuggestions.map((s, i) => {
+      const textScore = s.viral_score
+      const audioScore = scoreClipEnergy(energyMap, s.start_time, s.end_time)
+      const vs = visualScores.find(v => v.suggestionIndex === i)
+      const visualScore = vs?.visual_score ?? 50
+      const visualAnalysis = vs?.visual_analysis ?? ''
+
+      const composite = Math.round(textScore * W_TEXT + visualScore * W_VISUAL + audioScore * W_AUDIO)
+
+      return {
+        job_id: jobId,
+        workspace_id: job.workspace_id,
+        title: s.title,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        viral_score: Math.max(1, Math.min(100, composite)),
+        text_score: textScore,
+        audio_score: audioScore,
+        visual_score: visualScore,
+        visual_analysis: visualAnalysis,
+        hook: s.hook,
+        reason: s.reason,
+      }
+    })
+
+    // ── Step 9: Persist ───────────────────────────────────────────────────────
+    await admin.from('ai_clip_suggestions').insert(enriched)
 
     await admin.from('ai_jobs').update({
       status: 'done',
@@ -101,12 +146,13 @@ export async function processAiJob(jobId: string) {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 async function downloadFromStorage(bucket: string, storagePath: string, destPath: string) {
   const admin = createAdminClient()
   const { data, error } = await admin.storage.from(bucket).download(storagePath)
   if (error || !data) throw new Error(`Storage download failed: ${error?.message}`)
-  const buf = Buffer.from(await data.arrayBuffer())
-  fs.writeFileSync(destPath, buf)
+  fs.writeFileSync(destPath, Buffer.from(await data.arrayBuffer()))
 }
 
 function extractAudio(inputPath: string, outputPath: string): Promise<void> {
@@ -127,10 +173,9 @@ async function transcribeAudio(audioPath: string, tmpDir: string): Promise<Segme
   const stats = fs.statSync(audioPath)
 
   if (stats.size <= WHISPER_MAX_BYTES) {
-    // Single-pass transcription
     const file = fs.createReadStream(audioPath)
-    const result = await openai.audio.transcriptions.create({
-      file: file as Parameters<typeof openai.audio.transcriptions.create>[0]['file'],
+    const result = await getOpenAI().audio.transcriptions.create({
+      file: file as Parameters<OpenAI['audio']['transcriptions']['create']>[0]['file'],
       model: 'whisper-1',
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
@@ -138,7 +183,6 @@ async function transcribeAudio(audioPath: string, tmpDir: string): Promise<Segme
     return (result.segments ?? []) as Segment[]
   }
 
-  // Chunked transcription for large audio files
   const audioDuration = await getAudioDuration(audioPath)
   const allSegments: Segment[] = []
   let offset = 0
@@ -150,20 +194,20 @@ async function transcribeAudio(audioPath: string, tmpDir: string): Promise<Segme
     await extractAudioChunk(audioPath, chunkPath, offset, chunkDuration)
 
     const file = fs.createReadStream(chunkPath)
-    const result = await openai.audio.transcriptions.create({
-      file: file as Parameters<typeof openai.audio.transcriptions.create>[0]['file'],
+    const result = await getOpenAI().audio.transcriptions.create({
+      file: file as Parameters<OpenAI['audio']['transcriptions']['create']>[0]['file'],
       model: 'whisper-1',
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
     })
 
-    const segments = (result.segments ?? []) as Segment[]
-    // Offset timestamps
-    allSegments.push(...segments.map(s => ({
-      start: s.start + offset,
-      end: s.end + offset,
-      text: s.text,
-    })))
+    allSegments.push(
+      ...(result.segments ?? [] as Segment[]).map((s: Segment) => ({
+        start: s.start + offset,
+        end: s.end + offset,
+        text: s.text,
+      }))
+    )
 
     fs.rmSync(chunkPath, { force: true })
     offset += chunkDuration
@@ -216,14 +260,14 @@ Rules:
 - Clip boundaries must align with sentence/thought boundaries in the transcript
 - Prioritize: emotional peaks, surprising reveals, hot takes, funny reactions, quotable statements, controversy, unexpected moments
 - start_time and end_time are in SECONDS (e.g. 125.5 means 2 minutes 5.5 seconds)
-- viral_score: 1–100 (80+ = highly viral, 50–79 = good, below 50 = weak — don't include weak ones)
+- viral_score: 1–100 text-only score (80+ = highly viral, 50–79 = good — omit anything below 50)
 - hook: the attention-grabbing caption text for the first 2 seconds on screen
-- reason: 1-2 sentences explaining why this specific moment will perform well
+- reason: 1-2 sentences explaining why this moment will perform well
 
-Return ONLY a valid JSON object — no markdown, no explanation:
+Return ONLY valid JSON — no markdown:
 {"clips":[{"title":"...","start_time":0,"end_time":60,"viral_score":85,"hook":"...","reason":"..."}]}`
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     temperature: 0,
     response_format: { type: 'json_object' },

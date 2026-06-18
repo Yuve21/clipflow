@@ -148,11 +148,26 @@ function SuggestionCard({
             <span>{duration}s</span>
           </div>
 
+          {/* Multi-signal score breakdown */}
+          {(s.text_score != null || s.visual_score != null || s.audio_score != null) && (
+            <ScoreBreakdown
+              textScore={s.text_score}
+              visualScore={s.visual_score}
+              audioScore={s.audio_score}
+            />
+          )}
+
           <blockquote className="text-sm text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mb-2 font-medium">
             &ldquo;{s.hook}&rdquo;
           </blockquote>
 
           <p className="text-sm text-gray-600">{s.reason}</p>
+
+          {s.visual_analysis && s.visual_analysis !== 'Visual analysis unavailable.' && (
+            <p className="text-xs text-gray-500 mt-2 italic border-l-2 border-gray-200 pl-2">
+              👁 {s.visual_analysis}
+            </p>
+          )}
 
           {isError && s.cut_error && (
             <p className="text-xs text-red-600 mt-2">Cut failed: {s.cut_error}</p>
@@ -196,6 +211,48 @@ function ScoreBadge({ score }: { score: number }) {
   if (score >= 80) return <Badge variant="green">High viral</Badge>
   if (score >= 60) return <Badge variant="yellow">Good</Badge>
   return <Badge variant="gray">Moderate</Badge>
+}
+
+function ScoreBreakdown({
+  textScore,
+  visualScore,
+  audioScore,
+}: {
+  textScore: number | null
+  visualScore: number | null
+  audioScore: number | null
+}) {
+  const rows = [
+    { label: '📝 Transcript', score: textScore, weight: '55%', tip: 'Hook quality, emotional language & quotability' },
+    { label: '👁 Visual',     score: visualScore, weight: '35%', tip: 'Eye contact, expressions & body language' },
+    { label: '🔊 Audio',      score: audioScore,  weight: '10%', tip: 'Vocal energy & excitement peaks' },
+  ].filter(r => r.score != null)
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="bg-gray-50 rounded-lg px-3 py-2 mb-3 space-y-1.5">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Score breakdown</p>
+      {rows.map(({ label, score, weight, tip }) => (
+        <div key={label} title={tip}>
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-xs text-gray-500">{label}</span>
+            <span className="text-xs font-semibold text-gray-700">{score}<span className="text-gray-400 font-normal">/{100}</span></span>
+          </div>
+          <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                (score ?? 0) >= 80 ? 'bg-green-500' :
+                (score ?? 0) >= 60 ? 'bg-yellow-400' : 'bg-gray-400'
+              }`}
+              style={{ width: `${score ?? 0}%` }}
+            />
+          </div>
+        </div>
+      ))}
+      <p className="text-[10px] text-gray-400 pt-0.5">Weights: {rows.map(r => `${r.label.split(' ')[1]} ${r.weight}`).join(' · ')}</p>
+    </div>
+  )
 }
 
 function formatTime(seconds: number) {
