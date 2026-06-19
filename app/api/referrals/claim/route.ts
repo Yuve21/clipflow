@@ -2,10 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
-const REFERRAL_REWARD_CREDITS = 3
-
 // POST /api/referrals/claim — attribute the current (newly signed-up) workspace
-// to a referrer's code and reward the referrer. Idempotent.
+// to a referrer's code. The reward is granted later, when the referred workspace
+// runs its first AI job (anti-farming — see app/api/ai-clipper/jobs). Idempotent.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -36,7 +35,7 @@ export async function POST(req: Request) {
     code,
     referred_workspace_id: wsId,
     status: 'signed_up',
-    reward_credits: REFERRAL_REWARD_CREDITS,
+    reward_credits: 0, // granted on the referred user's first AI job
     converted_at: new Date().toISOString(),
   })
 
@@ -45,9 +44,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Reward the referrer with AI credits; record referred_by if a profile exists.
-  await admin.rpc('add_ai_credits', { p_workspace_id: referrer.id, p_amount: REFERRAL_REWARD_CREDITS })
+  // Record referred_by if a profile exists (best-effort).
   await admin.from('clipper_profiles').update({ referred_by: referrer.id }).eq('workspace_id', wsId)
 
-  return NextResponse.json({ ok: true, rewarded: true })
+  return NextResponse.json({ ok: true, attributed: true })
 }

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse, after } from 'next/server'
 import { processAiJob } from '@/lib/ai-clipper/process'
+import { REFERRAL_REWARD_CREDITS } from '@/lib/credits'
 
 export const maxDuration = 300
 
@@ -61,6 +62,26 @@ export async function POST(req: Request) {
       { error: 'You are out of AI credits. Buy a credit pack to run the AI Clipper.', code: 'no_credits' },
       { status: 402 }
     )
+  }
+
+  // Anti-farming: reward the referrer the FIRST time this referred workspace runs
+  // a real job. The conditional update is idempotent — only one signed_up→rewarded
+  // transition ever fires, so we grant exactly once.
+  try {
+    const { data: rewardedRefs } = await admin
+      .from('referrals')
+      .update({ status: 'rewarded', reward_credits: REFERRAL_REWARD_CREDITS })
+      .eq('referred_workspace_id', member.workspace_id)
+      .eq('status', 'signed_up')
+      .select('referrer_workspace_id')
+    if (rewardedRefs && rewardedRefs.length) {
+      await admin.rpc('add_ai_credits', {
+        p_workspace_id: rewardedRefs[0].referrer_workspace_id,
+        p_amount: REFERRAL_REWARD_CREDITS,
+      })
+    }
+  } catch (e) {
+    console.warn('[referral] reward-on-first-job failed', e)
   }
 
   // Save filters

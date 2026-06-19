@@ -28,6 +28,14 @@ export function perCreditCents(pack: CreditPack): number {
 // 300s serverless function timeout.
 export const MAX_SOURCE_SECONDS = 90 * 60 // 90 minutes
 
+// Credits are the unified paid currency across both audiences.
+export const MATCH_COST_CREDITS = 1 // AI clipper-matching (brand demand-side tool)
+export const BOOST_COST_CREDITS = 5 // featured listing
+export const BOOST_DAYS = 7 // featured duration
+
+// Reward granted to a referrer once their referred workspace runs its first AI job.
+export const REFERRAL_REWARD_CREDITS = 3
+
 // OpenAI unit costs (USD), for internal margin metering only.
 // Re-confirm against the live OpenAI pricing page before relying on these.
 export const COST = {

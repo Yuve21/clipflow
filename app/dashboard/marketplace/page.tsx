@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Megaphone, Plus, UserCog, ExternalLink, Building2, Inbox, ListChecks } from 'lucide-react'
+import { Megaphone, Plus, UserCog, ExternalLink, Building2, Inbox, ListChecks, Coins, Star } from 'lucide-react'
 import { ApplyButton } from './apply-button'
+import { BuyCreditsButton } from '../ai-clipper/buy-credits-button'
 import { payoutLabel, promoBadge } from '@/lib/marketplace'
 import type { PayoutModel, PromoType } from '@/types/database'
 
@@ -15,6 +16,7 @@ type CampaignRow = {
   payout_model: PayoutModel
   payout_cents: number
   asset_url: string | null
+  boosted_until: string | null
   brands: { name: string; website: string | null; workspace_id: string } | null
   campaign_categories: { category_slug: string }[]
 }
@@ -32,23 +34,30 @@ export default async function MarketplacePage({
     .from('workspace_members').select('workspace_id').eq('user_id', user!.id).single()
   const wsId = member?.workspace_id
 
-  const [{ data: categories }, { data: campaignsData }, { data: participations }] = await Promise.all([
+  const [{ data: categories }, { data: campaignsData }, { data: participations }, { data: workspace }] = await Promise.all([
     supabase.from('content_categories').select('slug, label').order('sort'),
     supabase
       .from('campaigns')
-      .select('id, title, description, promo_type, payout_model, payout_cents, asset_url, brands(name, website, workspace_id), campaign_categories(category_slug)')
+      .select('id, title, description, promo_type, payout_model, payout_cents, asset_url, boosted_until, brands(name, website, workspace_id), campaign_categories(category_slug)')
       .eq('status', 'active')
       .order('created_at', { ascending: false }),
     supabase.from('campaign_participations').select('campaign_id, status').eq('clipper_workspace_id', wsId),
+    supabase.from('workspaces').select('ai_credits').eq('id', wsId).single(),
   ])
 
-  const allCampaigns = (campaignsData ?? []) as unknown as CampaignRow[]
+  const nowMs = Date.now()
+  const isBoosted = (c: CampaignRow) => !!c.boosted_until && new Date(c.boosted_until).getTime() > nowMs
+
+  const allCampaigns = ((campaignsData ?? []) as unknown as CampaignRow[])
+    // Featured (boosted) campaigns first, then newest (stable sort preserves the query order).
+    .sort((a, b) => (isBoosted(b) ? 1 : 0) - (isBoosted(a) ? 1 : 0))
   const campaigns = cat
     ? allCampaigns.filter((c) => c.campaign_categories.some((cc) => cc.category_slug === cat))
     : allCampaigns
 
   const appliedTo = new Map((participations ?? []).map((p) => [p.campaign_id, p.status]))
   const catLabel = new Map((categories ?? []).map((c) => [c.slug, c.label]))
+  const credits = workspace?.ai_credits ?? 0
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -62,7 +71,14 @@ export default async function MarketplacePage({
             Get paid to promote brands, services, and music — or post a campaign and let clippers amplify yours.
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700"
+            title="Credits power AI clips, clipper-matching, and boosts"
+          >
+            <Coins size={15} /> {credits}
+          </div>
+          <BuyCreditsButton />
           <Link
             href="/dashboard/marketplace/brands"
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
@@ -125,10 +141,17 @@ export default async function MarketplacePage({
             const isOwn = c.brands?.workspace_id === wsId
             const applied = appliedTo.get(c.id)
             return (
-              <Card key={c.id} className="flex flex-col">
+              <Card key={c.id} className={`flex flex-col ${isBoosted(c) ? 'ring-1 ring-indigo-200' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-gray-400">{c.brands?.name ?? 'Brand'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium text-gray-400">{c.brands?.name ?? 'Brand'}</p>
+                      {isBoosted(c) && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-indigo-600">
+                          <Star size={9} className="fill-indigo-600" /> Featured
+                        </span>
+                      )}
+                    </div>
                     <h3 className="font-semibold text-gray-900 leading-snug">{c.title}</h3>
                   </div>
                   <Badge variant={promoBadge[c.promo_type]}>

@@ -3,10 +3,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Megaphone, Building2, MousePointerClick } from 'lucide-react'
+import { ArrowLeft, Plus, Megaphone, Building2, MousePointerClick, Target } from 'lucide-react'
 import { payoutLabel } from '@/lib/marketplace'
 import { ParticipantDecision } from './participant-decision'
 import { PayButton } from './pay-button'
+import { CampaignActions } from './campaign-actions'
 import type { CampaignStatus, ParticipationStatus, PayoutModel, PayoutStatus } from '@/types/database'
 
 type Participation = {
@@ -23,6 +24,7 @@ type CampaignRow = {
   status: CampaignStatus
   payout_model: PayoutModel
   payout_cents: number
+  boosted_until: string | null
   campaign_participations: Participation[]
 }
 
@@ -45,7 +47,7 @@ export default async function MyCampaignsPage() {
   if (brandIds.length) {
     const { data } = await admin
       .from('campaigns')
-      .select('id, title, status, payout_model, payout_cents, campaign_participations(id, status, pitch, applied_at, click_count, clipper_workspace_id)')
+      .select('id, title, status, payout_model, payout_cents, boosted_until, campaign_participations(id, status, pitch, applied_at, click_count, clipper_workspace_id)')
       .in('brand_id', brandIds)
       .order('created_at', { ascending: false })
     campaigns = (data ?? []) as unknown as CampaignRow[]
@@ -68,6 +70,19 @@ export default async function MyCampaignsPage() {
       payoutStatus.set(po.participation_id, po.status as PayoutStatus)
     }
   }
+
+  // Conversions per participation
+  const { data: convs } = partIds.length
+    ? await admin.from('tracking_conversions').select('participation_id').in('participation_id', partIds)
+    : { data: [] as { participation_id: string }[] }
+  const conversionCount = new Map<string, number>()
+  for (const cv of convs ?? []) conversionCount.set(cv.participation_id, (conversionCount.get(cv.participation_id) ?? 0) + 1)
+
+  // Which clippers are payout-ready (Stripe-onboarded)
+  const { data: clipperWs } = clipperIds.length
+    ? await admin.from('workspaces').select('id, stripe_onboarded').in('id', clipperIds)
+    : { data: [] as { id: string; stripe_onboarded: boolean }[] }
+  const payoutReady = new Map((clipperWs ?? []).map((w) => [w.id, !!w.stripe_onboarded]))
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -120,6 +135,12 @@ export default async function MyCampaignsPage() {
                   <span className="text-sm font-medium text-gray-700">{payoutLabel(c.payout_model, c.payout_cents)}</span>
                 </div>
 
+                {c.status === 'active' && (
+                  <div className="mt-3">
+                    <CampaignActions campaignId={c.id} boostedUntil={c.boosted_until} />
+                  </div>
+                )}
+
                 <div className="mt-4 border-t border-gray-100 pt-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                     {applicants.length} applicant{applicants.length === 1 ? '' : 's'}
@@ -133,15 +154,18 @@ export default async function MyCampaignsPage() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900">{clipperName.get(p.clipper_workspace_id) ?? 'Clipper'}</p>
                             {p.pitch && <p className="mt-0.5 text-xs text-gray-600">{p.pitch}</p>}
-                            <p className="mt-0.5 flex items-center gap-2 text-[11px] text-gray-400">
+                            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
                               <span>Applied {new Date(p.applied_at).toLocaleDateString()}</span>
                               <span className="inline-flex items-center gap-1"><MousePointerClick size={11} /> {p.click_count} clicks</span>
+                              <span className="inline-flex items-center gap-1"><Target size={11} /> {conversionCount.get(p.id) ?? 0} conv.</span>
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-2">
                             <ParticipantDecision participationId={p.id} initialStatus={p.status} />
                             {['approved', 'active', 'completed'].includes(p.status) && (
-                              <PayButton participationId={p.id} defaultCents={c.payout_cents} payoutStatus={payoutStatus.get(p.id)} />
+                              payoutReady.get(p.clipper_workspace_id)
+                                ? <PayButton participationId={p.id} defaultCents={c.payout_cents} payoutStatus={payoutStatus.get(p.id)} />
+                                : <span className="text-[11px] text-amber-600">Clipper not payout-ready</span>
                             )}
                           </div>
                         </div>
