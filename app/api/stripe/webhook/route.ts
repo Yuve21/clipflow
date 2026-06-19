@@ -51,6 +51,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true })
     }
 
+    // ── Marketplace payout — brand paid; transfer net to the clipper ──────────
+    if (session.metadata?.type === 'marketplace_payout' && session.payment_status === 'paid') {
+      const admin = createAdminClient()
+      const payoutId = session.metadata.payout_id
+
+      // Idempotent: only pending→paid proceeds to a transfer.
+      const { data: claimed } = await admin
+        .from('marketplace_payouts')
+        .update({ status: 'paid', paid_at: new Date().toISOString() })
+        .eq('id', payoutId)
+        .eq('status', 'pending')
+        .select('clipper_workspace_id, net_cents')
+        .single()
+
+      if (claimed) {
+        const { data: clipperWs } = await admin
+          .from('workspaces').select('stripe_account_id').eq('id', claimed.clipper_workspace_id).single()
+        const dest = clipperWs?.stripe_account_id
+
+        if (!dest) {
+          await admin.from('marketplace_payouts')
+            .update({ status: 'failed', note: 'clipper has no connected account' }).eq('id', payoutId)
+        } else {
+          try {
+            // Draw the transfer from this specific charge (avoids platform balance timing).
+            let sourceTransaction: string | undefined
+            if (typeof session.payment_intent === 'string') {
+              const pi = await getStripe().paymentIntents.retrieve(session.payment_intent, { expand: ['latest_charge'] })
+              const charge = pi.latest_charge
+              sourceTransaction = typeof charge === 'string' ? charge : charge?.id
+            }
+            const transfer = await getStripe().transfers.create({
+              amount: claimed.net_cents,
+              currency: 'usd',
+              destination: dest,
+              ...(sourceTransaction ? { source_transaction: sourceTransaction } : {}),
+              metadata: { payout_id: payoutId },
+            })
+            await admin.from('marketplace_payouts')
+              .update({ status: 'transferred', stripe_transfer_id: transfer.id }).eq('id', payoutId)
+          } catch (err) {
+            // Payment already captured — mark failed for manual resolution, return 200.
+            console.error('Payout transfer failed', payoutId, err)
+            await admin.from('marketplace_payouts')
+              .update({ status: 'failed', note: 'transfer failed' }).eq('id', payoutId)
+          }
+        }
+      }
+      return NextResponse.json({ received: true })
+    }
+
     const invoiceId = session.metadata?.invoice_id
 
     if (invoiceId && session.payment_status === 'paid') {

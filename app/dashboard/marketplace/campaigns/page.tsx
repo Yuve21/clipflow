@@ -3,16 +3,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Megaphone, Building2 } from 'lucide-react'
+import { ArrowLeft, Plus, Megaphone, Building2, MousePointerClick } from 'lucide-react'
 import { payoutLabel } from '@/lib/marketplace'
 import { ParticipantDecision } from './participant-decision'
-import type { CampaignStatus, ParticipationStatus, PayoutModel } from '@/types/database'
+import { PayButton } from './pay-button'
+import type { CampaignStatus, ParticipationStatus, PayoutModel, PayoutStatus } from '@/types/database'
 
 type Participation = {
   id: string
   status: ParticipationStatus
   pitch: string | null
   applied_at: string
+  click_count: number
   clipper_workspace_id: string
 }
 type CampaignRow = {
@@ -43,7 +45,7 @@ export default async function MyCampaignsPage() {
   if (brandIds.length) {
     const { data } = await admin
       .from('campaigns')
-      .select('id, title, status, payout_model, payout_cents, campaign_participations(id, status, pitch, applied_at, clipper_workspace_id)')
+      .select('id, title, status, payout_model, payout_cents, campaign_participations(id, status, pitch, applied_at, click_count, clipper_workspace_id)')
       .in('brand_id', brandIds)
       .order('created_at', { ascending: false })
     campaigns = (data ?? []) as unknown as CampaignRow[]
@@ -54,6 +56,18 @@ export default async function MyCampaignsPage() {
     ? await admin.from('clipper_profiles').select('workspace_id, display_name').in('workspace_id', clipperIds)
     : { data: [] as { workspace_id: string; display_name: string }[] }
   const clipperName = new Map((profiles ?? []).map((p) => [p.workspace_id, p.display_name]))
+
+  // Latest payout status per participation (for the Pay button)
+  const partIds = campaigns.flatMap((c) => c.campaign_participations.map((p) => p.id))
+  const { data: payouts } = partIds.length
+    ? await admin.from('marketplace_payouts').select('participation_id, status, created_at').in('participation_id', partIds).order('created_at', { ascending: false })
+    : { data: [] as { participation_id: string; status: PayoutStatus; created_at: string }[] }
+  const payoutStatus = new Map<string, PayoutStatus>()
+  for (const po of payouts ?? []) {
+    if (po.participation_id && !payoutStatus.has(po.participation_id)) {
+      payoutStatus.set(po.participation_id, po.status as PayoutStatus)
+    }
+  }
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -119,9 +133,17 @@ export default async function MyCampaignsPage() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900">{clipperName.get(p.clipper_workspace_id) ?? 'Clipper'}</p>
                             {p.pitch && <p className="mt-0.5 text-xs text-gray-600">{p.pitch}</p>}
-                            <p className="mt-0.5 text-[11px] text-gray-400">Applied {new Date(p.applied_at).toLocaleDateString()}</p>
+                            <p className="mt-0.5 flex items-center gap-2 text-[11px] text-gray-400">
+                              <span>Applied {new Date(p.applied_at).toLocaleDateString()}</span>
+                              <span className="inline-flex items-center gap-1"><MousePointerClick size={11} /> {p.click_count} clicks</span>
+                            </p>
                           </div>
-                          <ParticipantDecision participationId={p.id} initialStatus={p.status} />
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            <ParticipantDecision participationId={p.id} initialStatus={p.status} />
+                            {['approved', 'active', 'completed'].includes(p.status) && (
+                              <PayButton participationId={p.id} defaultCents={c.payout_cents} payoutStatus={payoutStatus.get(p.id)} />
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -9,6 +9,7 @@ import {
   BarChart2,
   ArrowRight,
   Star,
+  Megaphone,
 } from 'lucide-react'
 
 const PROBLEMS = [
@@ -58,29 +59,35 @@ const FEATURES = [
     icon: Sparkles,
     title: 'AI Clipper',
     description:
-      'Upload long content. Get back ranked viral moments with transcript, visual, and audio scores. Pro feature.',
+      'Upload long content. Get back ranked viral moments with transcript, visual, and audio scores. Pay per use — buy credits as you go.',
+  },
+  {
+    icon: Megaphone,
+    title: 'Promotion Marketplace',
+    description:
+      'Get paid to promote brands, products, and music — or post a campaign and let clippers amplify yours. Tracked links, approvals, payouts.',
   },
   {
     icon: Zap,
-    title: 'Invoicing',
+    title: 'Invoicing & Payouts',
     description:
-      'Generate invoices per client per period, track line items, and mark them paid in one click.',
+      'Invoice clients through Stripe, get paid directly, and receive marketplace payouts to your connected account.',
   },
 ] as const
 
 const FREE_FEATURES = [
-  'Unlimited clients',
-  'Clip kanban board',
-  'Posting log',
-  'Client agreements',
-  'Basic invoicing',
+  'Unlimited clients & clips',
+  'Clip kanban + posting log',
+  'Client agreements & portals',
+  'Invoicing with Stripe payouts',
+  'Promotion marketplace access',
 ] as const
 
 const PRO_FEATURES = [
-  'Everything in Free',
-  'AI Clipper (10 jobs/mo)',
+  '1 credit = 1 AI clip job',
   'Transcript + visual + audio scoring',
-  'Priority support',
+  'Source videos up to 90 min',
+  'Credits never expire',
 ] as const
 
 export default function Home() {
@@ -299,7 +306,7 @@ export default function Home() {
                 href="#pricing"
                 className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-base font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
               >
-                Upgrade to Pro
+                See credit pricing
                 <ArrowRight className="h-4 w-4" />
               </a>
             </div>
@@ -314,8 +321,8 @@ export default function Home() {
                 Simple pricing. Free until AI does your scouting.
               </h2>
               <p className="mt-4 text-lg text-gray-600">
-                The whole operations layer is free. Pay only when you want the AI Clipper
-                finding moments for you.
+                The whole platform — including the promotion marketplace — is free. Pay only when you
+                want the AI Clipper finding moments for you.
               </p>
             </div>
             <div className="mx-auto mt-14 grid max-w-3xl gap-6 md:grid-cols-2">
@@ -341,15 +348,16 @@ export default function Home() {
                   Start free
                 </Link>
               </div>
-              {/* Pro plan */}
+              {/* AI Clipper credits — pay per use */}
               <div className="relative flex flex-col rounded-xl border-2 border-indigo-600 bg-white p-8 shadow-md">
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold tracking-wide text-white">
-                  BEST FOR GROWTH
+                  PAY AS YOU GO
                 </span>
-                <h3 className="text-base font-semibold">Pro</h3>
+                <h3 className="text-base font-semibold">AI Clipper credits</h3>
                 <p className="mt-3">
-                  <span className="text-4xl font-extrabold tracking-tight">$29</span>
-                  <span className="text-sm font-medium text-gray-500">/month</span>
+                  <span className="text-sm font-medium text-gray-500">from </span>
+                  <span className="text-4xl font-extrabold tracking-tight">$1.20</span>
+                  <span className="text-sm font-medium text-gray-500">/credit</span>
                 </p>
                 <ul className="mt-6 flex-1 space-y-3">
                   {PRO_FEATURES.map((item) => (
@@ -363,7 +371,7 @@ export default function Home() {
                   href="/login"
                   className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
                 >
-                  Upgrade to Pro
+                  Start free — 2 credits included
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>

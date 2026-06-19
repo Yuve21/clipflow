@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Megaphone, Plus, UserCog, ExternalLink, Building2, Inbox } from 'lucide-react'
+import { Megaphone, Plus, UserCog, ExternalLink, Building2, Inbox, ListChecks } from 'lucide-react'
 import { ApplyButton } from './apply-button'
 import { payoutLabel, promoBadge } from '@/lib/marketplace'
 import type { PayoutModel, PromoType } from '@/types/database'
@@ -68,6 +68,12 @@ export default async function MarketplacePage({
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
           >
             <Building2 size={15} /> Browse brands
+          </Link>
+          <Link
+            href="/dashboard/marketplace/applications"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <ListChecks size={15} /> My applications
           </Link>
           <Link
             href="/dashboard/marketplace/campaigns"

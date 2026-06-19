@@ -13,6 +13,7 @@ export interface Workspace {
   plan: Plan
   stripe_customer_id: string | null
   ai_credits: number
+  referral_code: string | null
   created_at: string
 }
 
@@ -100,8 +101,40 @@ export interface CampaignParticipation {
   clipper_workspace_id: string
   status: ParticipationStatus
   pitch: string | null
+  track_token: string | null
+  click_count: number
   applied_at: string
   decided_at: string | null
+}
+
+export type PayoutStatus = 'pending' | 'paid' | 'transferred' | 'failed'
+
+export interface MarketplacePayout {
+  id: string
+  campaign_id: string | null
+  participation_id: string | null
+  brand_workspace_id: string
+  clipper_workspace_id: string
+  gross_cents: number
+  take_cents: number
+  net_cents: number
+  stripe_checkout_session_id: string | null
+  stripe_transfer_id: string | null
+  status: PayoutStatus
+  note: string | null
+  created_at: string
+  paid_at: string | null
+}
+
+export interface Referral {
+  id: string
+  referrer_workspace_id: string
+  code: string
+  referred_workspace_id: string | null
+  status: 'pending' | 'signed_up' | 'rewarded'
+  reward_credits: number
+  created_at: string
+  converted_at: string | null
 }
 
 export interface WorkspaceMember {

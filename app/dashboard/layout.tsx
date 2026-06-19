@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Sidebar, MobileNav } from '@/components/sidebar'
+import { ReferralClaim } from './referral-claim'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -10,6 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      <ReferralClaim />
       {/* Desktop sidebar — hidden on mobile */}
       <div className="hidden md:block">
         <Sidebar />

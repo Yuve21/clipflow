@@ -18,7 +18,6 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null)
   const brandName = typeof body?.brand_name === 'string' ? body.brand_name.trim() : ''
   const title = typeof body?.title === 'string' ? body.title.trim() : ''
-  if (!brandName) return NextResponse.json({ error: 'Brand name is required' }, { status: 400 })
   if (!title) return NextResponse.json({ error: 'Campaign title is required' }, { status: 400 })
 
   const promoType = PROMO_TYPES.includes(body?.promo_type) ? body.promo_type : 'product'
@@ -30,12 +29,16 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient()
 
-  // Find or create a brand for this workspace
+  // Use the workspace's primary (earliest) brand; only create one from brand_name
+  // if the workspace has none yet. Prevents duplicate brands when the name differs
+  // from a brand profile the user already set up.
   const { data: existingBrand } = await admin
-    .from('brands').select('id').eq('workspace_id', member.workspace_id).eq('name', brandName).maybeSingle()
+    .from('brands').select('id').eq('workspace_id', member.workspace_id)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle()
 
   let brandId = existingBrand?.id
   if (!brandId) {
+    if (!brandName) return NextResponse.json({ error: 'Brand name is required' }, { status: 400 })
     const { data: newBrand, error: brandErr } = await admin
       .from('brands')
       .insert({

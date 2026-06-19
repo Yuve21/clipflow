@@ -40,7 +40,6 @@ export function CampaignForm({ categories }: { categories: Category[] }) {
 
   async function submit(status: 'draft' | 'active') {
     setError('')
-    if (!form.brand_name.trim()) return setError('Brand name is required')
     if (!form.title.trim()) return setError('Campaign title is required')
     setSaving(status)
     try {
@@ -68,7 +67,7 @@ export function CampaignForm({ categories }: { categories: Category[] }) {
   return (
     <Card>
       <form onSubmit={(e) => { e.preventDefault(); submit('active') }} className="space-y-5">
-        <Input label="Brand name *" value={form.brand_name} onChange={(e) => set('brand_name', e.target.value)} placeholder="Acme Inc." />
+        <Input label="Brand name" value={form.brand_name} onChange={(e) => set('brand_name', e.target.value)} placeholder="Acme Inc." hint="Only needed the first time — we'll reuse your brand profile after that." />
         <Input label="Campaign title *" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Promote our new energy drink" />
 
         <div className="flex flex-col gap-1">

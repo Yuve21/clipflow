@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Users, Film, BookOpen, LayoutDashboard, LogOut, Sparkles, Receipt, Settings2, Menu, X, BarChart2, Megaphone } from 'lucide-react'
+import { Users, Film, BookOpen, LayoutDashboard, LogOut, Sparkles, Receipt, Settings2, Menu, X, BarChart2, Megaphone, Gift } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const nav = [
@@ -13,6 +13,7 @@ const nav = [
   { href: '/dashboard/clips', label: 'Clips', icon: Film },
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/dashboard/marketplace', label: 'Marketplace', icon: Megaphone },
+  { href: '/dashboard/referrals', label: 'Refer & earn', icon: Gift },
   { href: '/dashboard/sources', label: 'Sources', icon: BookOpen },
   { href: '/dashboard/invoices', label: 'Invoices', icon: Receipt },
   { href: '/dashboard/ai-clipper', label: 'AI Clipper', icon: Sparkles, pro: true },

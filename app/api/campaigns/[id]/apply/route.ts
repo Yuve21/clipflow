@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 
 // POST /api/campaigns/[id]/apply — a clipper applies to promote a campaign
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     clipper_workspace_id: member.workspace_id,
     pitch,
     status: 'applied',
+    track_token: randomBytes(8).toString('hex'),
   })
 
   if (error) {
