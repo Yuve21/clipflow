@@ -16,7 +16,7 @@ const nav = [
   { href: '/dashboard/referrals', label: 'Refer & earn', icon: Gift },
   { href: '/dashboard/sources', label: 'Sources', icon: BookOpen },
   { href: '/dashboard/invoices', label: 'Invoices', icon: Receipt },
-  { href: '/dashboard/ai-clipper', label: 'AI Clipper', icon: Sparkles, pro: true },
+  { href: '/dashboard/ai-clipper', label: 'AI Clipper', icon: Sparkles },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings2 },
 ]
 
@@ -34,7 +34,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <nav className="flex-1 p-3 space-y-0.5">
-        {nav.map(({ href, label, icon: Icon, exact, pro }) => {
+        {nav.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href)
           return (
             <Link
@@ -65,11 +65,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 )}
               />
               {label}
-              {pro && (
-                <span className="ml-auto rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  PRO
-                </span>
-              )}
             </Link>
           )
         })}

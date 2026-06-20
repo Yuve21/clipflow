@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { reapStuckJobs } from '@/lib/ai-clipper/process'
 
 export async function GET(
   _req: Request,
@@ -12,6 +13,9 @@ export async function GET(
 
   const { data: member } = await supabase
     .from('workspace_members').select('workspace_id').eq('user_id', user.id).single()
+
+  // Resolve timed-out jobs (and refund) so a poller doesn't spin forever.
+  if (member?.workspace_id) await reapStuckJobs(member.workspace_id)
 
   const { data: job } = await supabase
     .from('ai_jobs')

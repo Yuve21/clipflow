@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Sparkles, Clock, CheckCircle2, AlertCircle, Loader2, Coins } from 'lucide-react'
 import { NewJobButton } from './new-job-button'
 import { BuyCreditsButton } from './buy-credits-button'
+import { reapStuckJobs } from '@/lib/ai-clipper/process'
 import type { AiJobStatus } from '@/types/database'
 
 export default async function AiClipperPage() {
@@ -13,6 +14,9 @@ export default async function AiClipperPage() {
 
   const { data: member } = await supabase
     .from('workspace_members').select('workspace_id').eq('user_id', user!.id).single()
+
+  // Self-heal any timed-out jobs (refunds credits) before showing the list.
+  if (member?.workspace_id) await reapStuckJobs(member.workspace_id)
 
   const { data: workspace } = await supabase
     .from('workspaces').select('ai_credits').eq('id', member?.workspace_id).single()

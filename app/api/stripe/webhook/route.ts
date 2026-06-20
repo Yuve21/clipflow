@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         .update({ status: 'paid', paid_at: new Date().toISOString() })
         .eq('id', payoutId)
         .eq('status', 'pending')
-        .select('clipper_workspace_id, net_cents')
+        .select('clipper_workspace_id, net_cents, participation_id')
         .single()
 
       if (claimed) {
@@ -91,6 +91,12 @@ export async function POST(req: Request) {
             })
             await admin.from('marketplace_payouts')
               .update({ status: 'transferred', stripe_transfer_id: transfer.id }).eq('id', payoutId)
+            // Mark the participation completed now that the clipper has been paid.
+            if (claimed.participation_id) {
+              await admin.from('campaign_participations')
+                .update({ status: 'completed', decided_at: new Date().toISOString() })
+                .eq('id', claimed.participation_id)
+            }
           } catch (err) {
             // Payment already captured — mark failed for manual resolution, return 200.
             console.error('Payout transfer failed', payoutId, err)

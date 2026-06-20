@@ -351,6 +351,47 @@ async function recordUsage(
   }
 }
 
+// Self-healing: jobs run in a 300s serverless window via after(); if one times out
+// it can be stranded in 'processing' forever with the user's credit already spent.
+// Called opportunistically when a workspace views its jobs — marks timed-out jobs as
+// errored and refunds the credit. Idempotent: the conditional update guarantees a
+// single processing→error transition, so a credit is refunded at most once.
+const PROCESSING_TIMEOUT_MS = 15 * 60 * 1000 // generous vs the 300s cap
+const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000
+
+export async function reapStuckJobs(workspaceId: string) {
+  const admin = createAdminClient()
+  const now = Date.now()
+
+  // Timed-out processing jobs → error + refund (a credit was consumed at start).
+  const { data: stuck } = await admin
+    .from('ai_jobs')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'processing')
+    .lt('created_at', new Date(now - PROCESSING_TIMEOUT_MS).toISOString())
+
+  for (const j of stuck ?? []) {
+    const { data: flipped } = await admin
+      .from('ai_jobs')
+      .update({ status: 'error', error_message: 'Timed out while processing — your credit was refunded.' })
+      .eq('id', j.id)
+      .eq('status', 'processing')
+      .select('id')
+    if (flipped && flipped.length) {
+      await admin.rpc('add_ai_credits', { p_workspace_id: workspaceId, p_amount: 1 })
+    }
+  }
+
+  // Abandoned uploads (never started) → error, no refund (no credit was consumed).
+  await admin
+    .from('ai_jobs')
+    .update({ status: 'error', error_message: 'Upload never completed.' })
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'uploading')
+    .lt('created_at', new Date(now - UPLOAD_TIMEOUT_MS).toISOString())
+}
+
 function formatTime(seconds: number) {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
